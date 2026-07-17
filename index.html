@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wrapper Portal - アプリ/ゲーム管理</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<style>
+  :root{
+    --bg:#0f1117; --panel:#181b24; --panel2:#1f2330; --border:#2a2f3d;
+    --text:#e8e9ee; --sub:#9aa0b0; --accent:#6c8cff; --accent2:#8f6cff;
+    --star:#ffc94d; --danger:#ff6b6b; --ok:#4dd8a3; --warn:#ffb454;
+    --radius:14px;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:"Segoe UI","Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;}
+  header{position:sticky;top:0;z-index:20;background:rgba(15,17,23,.92);backdrop-filter:blur(6px);border-bottom:1px solid var(--border);padding:16px 24px;}
+  h1{font-size:20px;margin:0 0 12px;display:flex;align-items:center;gap:8px;}
+  h1 .logo{font-size:22px;}
+  .toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;}
+  input,select,textarea,button{font-family:inherit;font-size:14px;}
+  #search{flex:1;min-width:180px;padding:9px 12px;border-radius:10px;border:1px solid var(--border);background:var(--panel2);color:var(--text);}
+  select{padding:9px 10px;border-radius:10px;border:1px solid var(--border);background:var(--panel2);color:var(--text);}
+  .btn{padding:9px 14px;border-radius:10px;border:1px solid var(--border);background:var(--panel2);color:var(--text);cursor:pointer;white-space:nowrap;}
+  .btn:hover{border-color:var(--accent);}
+  .btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;color:#fff;font-weight:600;}
+  .btn.danger{border-color:var(--danger);color:var(--danger);}
+  .stats{display:flex;gap:18px;margin-top:10px;font-size:13px;color:var(--sub);flex-wrap:wrap;}
+  .stats b{color:var(--text);}
+  .tagbar{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;}
+  .chip{padding:5px 11px;border-radius:999px;border:1px solid var(--border);font-size:12px;color:var(--sub);cursor:pointer;background:var(--panel2);}
+  .chip.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+  main{padding:22px;max-width:1400px;margin:0 auto;}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:18px;}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;display:flex;flex-direction:column;transition:.15s;position:relative;}
+  .card:hover{border-color:var(--accent);transform:translateY(-2px);}
+  .thumb{width:100%;aspect-ratio:16/10;background:var(--panel2);display:flex;align-items:center;justify-content:center;color:var(--sub);font-size:12px;overflow:hidden;cursor:pointer;}
+  .thumb img{width:100%;height:100%;object-fit:cover;}
+  .fav-btn{position:absolute;top:10px;right:10px;background:rgba(15,17,23,.75);border:none;border-radius:999px;padding:5px 10px;font-size:12.5px;cursor:pointer;color:#ff7a9c;display:flex;align-items:center;gap:4px;}
+  .fav-btn:hover{background:rgba(255,122,156,.25);}
+  .card-body{padding:14px 14px 12px;display:flex;flex-direction:column;gap:6px;flex:1;}
+  .card-title{font-size:15px;font-weight:700;display:flex;align-items:center;gap:6px;cursor:pointer;}
+  .badge{font-size:10px;padding:2px 8px;border-radius:999px;border:1px solid var(--border);color:var(--sub);}
+  .badge.status-開発中{color:var(--warn);border-color:var(--warn);}
+  .badge.status-公開中{color:var(--ok);border-color:var(--ok);}
+  .badge.status-アーカイブ{color:var(--sub);}
+  .card-desc{font-size:12.5px;color:var(--sub);line-height:1.5;max-height:54px;overflow:hidden;}
+  .card-tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:2px;}
+  .card-tags span{font-size:10.5px;color:var(--accent);background:rgba(108,140,255,.12);padding:2px 7px;border-radius:6px;}
+  .card-foot{display:flex;justify-content:space-between;align-items:center;margin-top:auto;padding-top:8px;font-size:11px;color:var(--sub);}
+  .card-actions{display:flex;gap:6px;padding:0 14px 14px;}
+  .card-actions .btn{flex:1;padding:7px;font-size:12.5px;text-align:center;}
+  .empty{text-align:center;color:var(--sub);padding:60px 20px;}
+  .overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:100;padding:20px;}
+  .overlay.show{display:flex;}
+  .modal{background:var(--panel);border:1px solid var(--border);border-radius:16px;max-width:560px;width:100%;max-height:88vh;overflow-y:auto;padding:24px;position:relative;}
+  .modal h2{margin:0 0 16px;font-size:17px;}
+  .field{margin-bottom:12px;}
+  .field label{display:block;font-size:12.5px;color:var(--sub);margin-bottom:5px;}
+  .field input,.field textarea,.field select{width:100%;padding:9px 11px;border-radius:9px;border:1px solid var(--border);background:var(--panel2);color:var(--text);}
+  .field textarea{resize:vertical;min-height:60px;}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;}
+  .detail-img{width:100%;border-radius:10px;margin-bottom:12px;background:var(--panel2);max-height:280px;object-fit:cover;}
+  .detail-section{margin-top:14px;}
+  .detail-section h3{font-size:13px;color:var(--sub);margin:0 0 6px;}
+  .changelog-item{font-size:12.5px;color:var(--sub);border-left:2px solid var(--border);padding-left:10px;margin-bottom:6px;}
+  .changelog-item b{color:var(--text);}
+  .qr-box{text-align:center;margin-top:10px;}
+  .qr-box img{background:#fff;padding:8px;border-radius:8px;}
+  .close-x{position:absolute;top:14px;right:16px;background:none;border:none;color:var(--sub);font-size:20px;cursor:pointer;}
+  .hint{font-size:11px;color:var(--sub);margin-top:4px;}
+  .file-row{display:flex;gap:8px;align-items:center;}
+  .configWarn{background:#3a1f1f;border:1px solid var(--danger);color:#ffb3b3;padding:14px 18px;margin:16px 24px;border-radius:10px;font-size:13px;line-height:1.6;}
+  .spinner{text-align:center;color:var(--sub);padding:40px;}
+</style>
+</head>
+<body>
+
+<div id="configWarn" class="configWarn" style="display:none;">
+  ⚠️ SUPABASE_URL / SUPABASE_ANON_KEY が未設定です。index.html 内の該当箇所を書き換えてください。
+</div>
+
+<header>
+  <h1><span class="logo">🗂️</span> Wrapper Portal</h1>
+  <div class="toolbar">
+    <input id="search" type="text" placeholder="アプリ名・説明・使い方で検索...">
+    <select id="statusFilter">
+      <option value="">全ステータス</option>
+      <option value="開発中">開発中</option>
+      <option value="公開中">公開中</option>
+      <option value="アーカイブ">アーカイブ</option>
+    </select>
+    <select id="sortSel">
+      <option value="favorite">お気に入りが多い順</option>
+      <option value="updated">更新日が新しい順</option>
+      <option value="access">アクセス数が多い順</option>
+      <option value="name">名前順</option>
+    </select>
+    <button class="btn primary" id="addBtn" style="display:none;">＋ アプリを追加</button>
+    <button class="btn" id="lockBtn">🔒 管理者ログイン</button>
+  </div>
+  <div class="stats">
+    <span>総アプリ数: <b id="statTotal">0</b></span>
+    <span>❤ 総お気に入り数: <b id="statFav">0</b></span>
+    <span>👁 総アクセス数: <b id="statAccess">0</b></span>
+  </div>
+  <div class="tagbar" id="tagBar"></div>
+</header>
+
+<main>
+  <div class="spinner" id="loadingMsg">読み込み中...</div>
+  <div class="grid" id="grid"></div>
+  <div class="empty" id="emptyMsg" style="display:none;">登録されているアプリがありません。</div>
+</main>
+
+<!-- 追加/編集モーダル -->
+<div class="overlay" id="formOverlay">
+  <div class="modal">
+    <button class="close-x" data-close="formOverlay">×</button>
+    <h2 id="formTitle">アプリを追加</h2>
+    <form id="appForm">
+      <input type="hidden" id="f_id">
+      <div class="field"><label>アプリ名 *</label><input id="f_name" required></div>
+      <div class="field"><label>リンク (URL) *</label><input id="f_link" type="url" required placeholder="https://..."></div>
+      <div class="row2">
+        <div class="field"><label>バージョン</label><input id="f_version" placeholder="例: v1.2.0"></div>
+        <div class="field"><label>ステータス</label>
+          <select id="f_status">
+            <option value="開発中">開発中</option>
+            <option value="公開中">公開中</option>
+            <option value="アーカイブ">アーカイブ</option>
+          </select>
+        </div>
+      </div>
+      <div class="field"><label>説明</label><textarea id="f_desc" placeholder="どんなアプリ・ゲームか"></textarea></div>
+      <div class="field"><label>使用ケース・使用方法</label><textarea id="f_usage" placeholder="どんな時に使うか、操作方法など"></textarea></div>
+      <div class="field"><label>タグ (カンマ区切り)</label><input id="f_tags" placeholder="例: 用途, 実装方式, 生成AI有無"></div>
+      <div class="field">
+        <label>画面イメージ</label>
+        <div class="file-row">
+          <input id="f_imageUrl" placeholder="画像URL、または下でファイル選択">
+          <input id="f_imageFile" type="file" accept="image/*">
+        </div>
+        <div class="hint">URL指定 or ファイル選択(自動でBase64埋め込み)。両方入力時はファイル優先。画像は軽量なものを推奨(DB容量節約のため)。</div>
+      </div>
+      <div class="field"><label>更新メモ (今回の変更点。任意)</label><input id="f_changenote" placeholder="例: バグ修正、UI改善など"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn" data-close="formOverlay">キャンセル</button>
+        <button type="submit" class="btn primary">保存</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- 管理者ログインモーダル -->
+<div class="overlay" id="loginOverlay">
+  <div class="modal" style="max-width:340px;">
+    <button class="close-x" data-close="loginOverlay">×</button>
+    <h2>管理者ログイン</h2>
+    <form id="loginForm">
+      <div class="field"><label>メールアドレス</label><input id="loginEmail" type="email" autocomplete="off" required></div>
+      <div class="field"><label>パスワード</label><input id="loginPw" type="password" autocomplete="off" required></div>
+      <div class="hint" id="loginError" style="color:var(--danger);display:none;">ログインに失敗しました。</div>
+      <div class="modal-actions">
+        <button type="button" class="btn" data-close="loginOverlay">キャンセル</button>
+        <button type="submit" class="btn primary">ログイン</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- 詳細モーダル -->
+<div class="overlay" id="detailOverlay">
+  <div class="modal">
+    <button class="close-x" data-close="detailOverlay">×</button>
+    <div id="detailBody"></div>
+  </div>
+</div>
+
+<script>
+// ==== ここを自分のSupabaseプロジェクトの値に書き換えてください ====
+const SUPABASE_URL = 'https://bfnwzcymjkketfqwofyc.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_tA1fWvHCHmZJ5g3Z6_N0Uw_eQaMVk8y';
+// ================================================================
+
+let apps = [];
+let activeTags = new Set();
+let isAdmin = false;
+let sb = null;
+
+function isConfigured(){
+  return SUPABASE_URL && SUPABASE_URL !== 'YOUR_SUPABASE_URL' &&
+         SUPABASE_ANON_KEY && SUPABASE_ANON_KEY !== 'YOUR_SUPABASE_ANON_KEY';
+}
+
+function fromDb(row){
+  return {
+    id: row.id, name: row.name, link: row.link, version: row.version,
+    status: row.status, description: row.description, usage: row.usage,
+    tags: row.tags || [], image: row.image, changelog: row.changelog || [],
+    favoriteCount: row.favorite_count || 0, accessCount: row.access_count || 0,
+    createdAt: (row.created_at||'').slice(0,10), updatedAt: (row.updated_at||'').slice(0,10)
+  };
+}
+
+async function loadApps(){
+  const { data, error } = await sb.from('apps').select('*').order('created_at', {ascending:false});
+  if(error){ console.error(error); alert('データ取得に失敗しました: ' + error.message); return; }
+  apps = (data||[]).map(fromDb);
+  document.getElementById('loadingMsg').style.display = 'none';
+}
+
+function allTags(){
+  const s = new Set();
+  apps.forEach(a => (a.tags||[]).forEach(t => s.add(t)));
+  return [...s].sort();
+}
+
+function renderTagBar(){
+  const bar = document.getElementById('tagBar');
+  const tags = allTags();
+  bar.innerHTML = tags.map(t =>
+    `<span class="chip ${activeTags.has(t)?'active':''}" data-tag="${t}">${t}</span>`
+  ).join('');
+  bar.querySelectorAll('.chip').forEach(c=>{
+    c.addEventListener('click', ()=>{
+      const t = c.dataset.tag;
+      if(activeTags.has(t)) activeTags.delete(t); else activeTags.add(t);
+      renderGrid();
+      renderTagBar();
+    });
+  });
+}
+
+function renderStats(){
+  document.getElementById('statTotal').textContent = apps.length;
+  document.getElementById('statFav').textContent = apps.reduce((s,a)=>s+(a.favoriteCount||0),0);
+  document.getElementById('statAccess').textContent = apps.reduce((s,a)=>s+(a.accessCount||0),0);
+}
+
+function getFiltered(){
+  const q = document.getElementById('search').value.trim().toLowerCase();
+  const statusF = document.getElementById('statusFilter').value;
+  const sort = document.getElementById('sortSel').value;
+  let list = apps.filter(a=>{
+    if(statusF && a.status !== statusF) return false;
+    if(activeTags.size && !(a.tags||[]).some(t=>activeTags.has(t))) return false;
+    if(q){
+      const hay = [a.name,a.description,a.usage,(a.tags||[]).join(' ')].join(' ').toLowerCase();
+      if(!hay.includes(q)) return false;
+    }
+    return true;
+  });
+  switch(sort){
+    case 'updated': list.sort((a,b)=> (b.updatedAt||'').localeCompare(a.updatedAt||'')); break;
+    case 'access': list.sort((a,b)=> (b.accessCount||0)-(a.accessCount||0)); break;
+    case 'name': list.sort((a,b)=> a.name.localeCompare(b.name,'ja')); break;
+    default: list.sort((a,b)=> (b.favoriteCount||0)-(a.favoriteCount||0) || (b.updatedAt||'').localeCompare(a.updatedAt||''));
+  }
+  return list;
+}
+
+function renderGrid(){
+  const grid = document.getElementById('grid');
+  const list = getFiltered();
+  document.getElementById('emptyMsg').style.display = (list.length || !apps) ? 'none':'block';
+  document.getElementById('emptyMsg').style.display = list.length ? 'none':'block';
+  grid.innerHTML = list.map(a => `
+    <div class="card" data-id="${a.id}">
+      <button class="fav-btn" data-fav="${a.id}" title="いいね">❤ ${a.favoriteCount||0}</button>
+      <div class="thumb" data-open-detail="${a.id}">
+        ${a.image ? `<img src="${a.image}" alt="${a.name}">` : '画面イメージなし'}
+      </div>
+      <div class="card-body">
+        <div class="card-title" data-open-detail="${a.id}">
+          ${a.name}
+          <span class="badge status-${a.status}">${a.status}</span>
+        </div>
+        <div class="card-desc">${(a.description||'').replace(/</g,'&lt;')}</div>
+        <div class="card-tags">${(a.tags||[]).map(t=>`<span>${t}</span>`).join('')}</div>
+        <div class="card-foot">
+          <span>v${a.version||'-'} ・ 更新: ${a.updatedAt||'-'}</span>
+          <span>👁 ${a.accessCount||0}</span>
+        </div>
+      </div>
+      <div class="card-actions">
+        <button class="btn primary" data-open="${a.id}">開く</button>
+        ${isAdmin ? `<button class="btn" data-edit="${a.id}">編集</button><button class="btn danger" data-del="${a.id}">削除</button>` : ''}
+      </div>
+    </div>
+  `).join('');
+
+  grid.querySelectorAll('[data-open]').forEach(b=>b.addEventListener('click', async e=>{
+    const id = e.target.dataset.open;
+    const a = apps.find(x=>x.id===id);
+    a.accessCount = (a.accessCount||0)+1;
+    renderGrid(); renderStats();
+    window.open(a.link,'_blank');
+    await sb.rpc('increment_access', {target_id: id});
+  }));
+  grid.querySelectorAll('[data-fav]').forEach(b=>b.addEventListener('click', async e=>{
+    e.stopPropagation();
+    const id = e.currentTarget.dataset.fav;
+    const a = apps.find(x=>x.id===id);
+    a.favoriteCount = (a.favoriteCount||0)+1;
+    renderGrid(); renderStats();
+    await sb.rpc('increment_favorite', {target_id: id});
+  }));
+  grid.querySelectorAll('[data-open-detail]').forEach(b=>b.addEventListener('click', e=>{
+    openDetail(e.currentTarget.dataset.openDetail || e.currentTarget.getAttribute('data-open-detail'));
+  }));
+  grid.querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click', e=>{
+    openForm(e.target.dataset.edit);
+  }));
+  grid.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click', async e=>{
+    const a = apps.find(x=>x.id===e.target.dataset.del);
+    if(confirm(`「${a.name}」を削除しますか？`)){
+      const { error } = await sb.from('apps').delete().eq('id', a.id);
+      if(error){ alert('削除に失敗しました: ' + error.message); return; }
+      await loadApps(); renderAll();
+    }
+  }));
+}
+
+function renderAll(){ renderGrid(); renderTagBar(); renderStats(); }
+
+// ---- フォーム(追加/編集) ----
+function openForm(id){
+  if(!isAdmin) return;
+  const overlay = document.getElementById('formOverlay');
+  const form = document.getElementById('appForm');
+  form.reset();
+  document.getElementById('f_id').value = '';
+  document.getElementById('f_status').value = '開発中';
+  document.getElementById('formTitle').textContent = id ? 'アプリを編集' : 'アプリを追加';
+  if(id){
+    const a = apps.find(x=>x.id===id);
+    document.getElementById('f_id').value = a.id;
+    document.getElementById('f_name').value = a.name;
+    document.getElementById('f_link').value = a.link;
+    document.getElementById('f_version').value = a.version||'';
+    document.getElementById('f_status').value = a.status||'開発中';
+    document.getElementById('f_desc').value = a.description||'';
+    document.getElementById('f_usage').value = a.usage||'';
+    document.getElementById('f_tags').value = (a.tags||[]).join(', ');
+    document.getElementById('f_imageUrl').value = a.image && !a.image.startsWith('data:') ? a.image : '';
+  }
+  overlay.classList.add('show');
+}
+
+document.getElementById('appForm').addEventListener('submit', async e=>{
+  e.preventDefault();
+  if(!isAdmin) return;
+  const id = document.getElementById('f_id').value;
+  const fileInput = document.getElementById('f_imageFile');
+  let image = document.getElementById('f_imageUrl').value.trim();
+
+  const finalize = async () => {
+    const tags = document.getElementById('f_tags').value.split(',').map(t=>t.trim()).filter(Boolean);
+    const changenote = document.getElementById('f_changenote').value.trim();
+    const today = new Date().toISOString();
+
+    if(id){
+      const existing = apps.find(x=>x.id===id);
+      const changelog = existing.changelog || [];
+      if(changenote) changelog.unshift({date: today.slice(0,10), note: changenote});
+      const payload = {
+        name: document.getElementById('f_name').value.trim(),
+        link: document.getElementById('f_link').value.trim(),
+        version: document.getElementById('f_version').value.trim(),
+        status: document.getElementById('f_status').value,
+        description: document.getElementById('f_desc').value.trim(),
+        usage: document.getElementById('f_usage').value.trim(),
+        tags, changelog, updated_at: today
+      };
+      if(image) payload.image = image;
+      const { error } = await sb.from('apps').update(payload).eq('id', id);
+      if(error){ alert('更新に失敗しました: ' + error.message); return; }
+    } else {
+      const payload = {
+        name: document.getElementById('f_name').value.trim(),
+        link: document.getElementById('f_link').value.trim(),
+        version: document.getElementById('f_version').value.trim(),
+        status: document.getElementById('f_status').value,
+        description: document.getElementById('f_desc').value.trim(),
+        usage: document.getElementById('f_usage').value.trim(),
+        tags, image: image||'',
+        changelog: changenote ? [{date: today.slice(0,10), note: changenote}] : [{date: today.slice(0,10), note: '初回登録'}],
+        favorite_count: 0, access_count: 0
+      };
+      const { error } = await sb.from('apps').insert(payload);
+      if(error){ alert('登録に失敗しました: ' + error.message); return; }
+    }
+    document.getElementById('formOverlay').classList.remove('show');
+    await loadApps(); renderAll();
+  };
+
+  if(fileInput.files && fileInput.files[0]){
+    const reader = new FileReader();
+    reader.onload = () => { image = reader.result; finalize(); };
+    reader.readAsDataURL(fileInput.files[0]);
+  } else {
+    await finalize();
+  }
+});
+
+// ---- 詳細モーダル ----
+function openDetail(id){
+  const a = apps.find(x=>x.id===id);
+  const qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' + encodeURIComponent(a.link);
+  document.getElementById('detailBody').innerHTML = `
+    ${a.image ? `<img class="detail-img" src="${a.image}">` : ''}
+    <h2>${a.name} <span class="badge status-${a.status}">${a.status}</span></h2>
+    <div style="font-size:12.5px;color:var(--sub);">v${a.version||'-'} ・ 更新日: ${a.updatedAt} ・ 👁 ${a.accessCount||0}回アクセス ・ ❤ ${a.favoriteCount||0}件のお気に入り</div>
+    <div class="card-tags" style="margin-top:8px;">${(a.tags||[]).map(t=>`<span>${t}</span>`).join('')}</div>
+    <div class="detail-section"><h3>説明</h3><div>${(a.description||'(なし)').replace(/</g,'&lt;')}</div></div>
+    <div class="detail-section"><h3>使用ケース・使用方法</h3><div>${(a.usage||'(なし)').replace(/</g,'&lt;')}</div></div>
+    <div class="detail-section"><h3>更新履歴</h3>
+      ${(a.changelog||[]).map(c=>`<div class="changelog-item"><b>${c.date}</b> - ${c.note}</div>`).join('') || '<div class="hint">履歴なし</div>'}
+    </div>
+    <div class="detail-section"><h3>QRコード（スマホですぐ開く）</h3>
+      <div class="qr-box"><img src="${qrUrl}" alt="QR"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" data-favdetail="${a.id}">❤ いいねする</button>
+      <button class="btn" data-close="detailOverlay">閉じる</button>
+      <a class="btn primary" href="${a.link}" target="_blank" style="text-decoration:none;">開く</a>
+    </div>
+  `;
+  document.getElementById('detailOverlay').classList.add('show');
+  const favBtn = document.querySelector('[data-favdetail]');
+  if(favBtn) favBtn.addEventListener('click', async ()=>{
+    const app = apps.find(x=>x.id===id);
+    app.favoriteCount = (app.favoriteCount||0)+1;
+    renderGrid(); renderStats();
+    await sb.rpc('increment_favorite', {target_id: id});
+    openDetail(id);
+  });
+}
+
+// ---- 共通イベント ----
+document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click', e=>{
+  document.getElementById(e.target.dataset.close).classList.remove('show');
+}));
+document.querySelectorAll('.overlay').forEach(o=>o.addEventListener('click', e=>{
+  if(e.target === o) o.classList.remove('show');
+}));
+document.getElementById('addBtn').addEventListener('click', ()=>{ if(isAdmin) openForm(null); });
+document.getElementById('search').addEventListener('input', renderGrid);
+document.getElementById('statusFilter').addEventListener('change', renderGrid);
+document.getElementById('sortSel').addEventListener('change', renderGrid);
+
+// ---- 管理者ログイン(Supabase Auth) ----
+function updateAdminUI(){
+  document.getElementById('addBtn').style.display = isAdmin ? '' : 'none';
+  document.getElementById('lockBtn').textContent = isAdmin ? '🔓 ログアウト' : '🔒 管理者ログイン';
+}
+
+document.getElementById('lockBtn').addEventListener('click', async ()=>{
+  if(isAdmin){
+    if(confirm('管理者モードをログアウトしますか？')){
+      await sb.auth.signOut();
+    }
+  } else {
+    document.getElementById('loginError').style.display = 'none';
+    document.getElementById('loginForm').reset();
+    document.getElementById('loginOverlay').classList.add('show');
+  }
+});
+document.getElementById('loginForm').addEventListener('submit', async e=>{
+  e.preventDefault();
+  const email = document.getElementById('loginEmail').value;
+  const password = document.getElementById('loginPw').value;
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+  if(error){
+    document.getElementById('loginError').textContent = 'ログインに失敗しました: ' + error.message;
+    document.getElementById('loginError').style.display = 'block';
+  } else {
+    document.getElementById('loginOverlay').classList.remove('show');
+  }
+});
+
+// ---- 初期化 ----
+async function init(){
+  if(!isConfigured()){
+    document.getElementById('configWarn').style.display = 'block';
+    document.getElementById('loadingMsg').style.display = 'none';
+    return;
+  }
+  sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  const { data: { session } } = await sb.auth.getSession();
+  isAdmin = !!session;
+  updateAdminUI();
+
+  sb.auth.onAuthStateChange((_event, session)=>{
+    isAdmin = !!session;
+    updateAdminUI();
+    renderGrid();
+  });
+
+  await loadApps();
+  renderAll();
+}
+init();
+</script>
+</body>
+</html>
