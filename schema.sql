@@ -16,6 +16,8 @@ create table if not exists apps (
   changelog jsonb default '[]',
   favorite_count integer not null default 0,
   access_count integer not null default 0,
+  commit_count integer not null default 0,
+  repo_url text default '',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
